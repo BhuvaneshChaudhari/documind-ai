@@ -1,28 +1,27 @@
 import logging
 
+import httpx
+
 logger = logging.getLogger(__name__)
-
-_model = None
-
-
-def get_embedding_model():
-    global _model
-    if _model is None:
-        from sentence_transformers import SentenceTransformer
-        from config import EMBEDDING_MODEL
-
-        logger.info(f"Loading embedding model: {EMBEDDING_MODEL}")
-        _model = SentenceTransformer(EMBEDDING_MODEL)
-        logger.info(f"Model loaded. Dimension: {_model.get_embedding_dimension()}")
-    return _model
-
-
-logger.info("Preloading embedding model...")
-get_embedding_model()
-logger.info("Embedding model ready.")
 
 
 def generate_embeddings(texts: list[str]) -> list[list[float]]:
-    model = get_embedding_model()
-    embeddings = model.encode(texts, show_progress_bar=False)
-    return [emb.tolist() for emb in embeddings]
+    from config import EMBEDDING_MODEL, HF_API_TOKEN
+
+    if not HF_API_TOKEN:
+        raise RuntimeError(
+            "HF_API_TOKEN is not set. Get a free token at hf.co/settings/tokens"
+        )
+
+    url = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{EMBEDDING_MODEL}"
+    headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+
+    with httpx.Client(timeout=120) as client:
+        resp = client.post(url, headers=headers, json={"inputs": texts})
+        resp.raise_for_status()
+        embeddings = resp.json()
+
+    if isinstance(embeddings, list) and len(embeddings) == len(texts):
+        return embeddings
+
+    raise RuntimeError(f"Unexpected embedding response: {type(embeddings)}")
