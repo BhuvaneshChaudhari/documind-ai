@@ -2,21 +2,13 @@ import logging
 import re
 import time
 
-import httpx
+from groq import Groq
 
-from config import OLLAMA_BASE_URL, LLM_MODEL
+from config import GROQ_API_KEY, GROQ_MODEL, LLM_MODEL
 
 logger = logging.getLogger(__name__)
 
-PROMPT_TEMPLATE = """Use the context to answer the question. Plain text only. Be concise.
-
-Context:
-{retrieved_context}
-
-Question:
-{user_question}
-
-Answer:"""
+SYSTEM_PROMPT = """You are a document Q&A assistant. Use the provided context to answer the user's question. If the context doesn't contain the answer, say so. Be concise. Plain text only — no markdown formatting."""
 
 
 def _strip_markdown(text: str) -> str:
@@ -34,56 +26,37 @@ def generate_answer(question: str, context_chunks: list[dict]) -> dict:
         context_parts.append(f"[Source {i}] {c['text'].strip()}")
     retrieved_context = "\n\n".join(context_parts)
 
-    prompt = PROMPT_TEMPLATE.format(
-        retrieved_context=retrieved_context,
-        user_question=question,
-    )
+    user_message = f"""Context:
+{retrieved_context}
 
-    logger.info(f"Sending prompt to {LLM_MODEL} ({len(prompt)} chars)")
+Question:
+{question}
+
+Answer:"""
+
+    logger.info(f"Sending prompt to Groq ({GROQ_MODEL}) ({len(user_message)} chars)")
 
     start = time.monotonic()
     try:
-        with httpx.Client(timeout=300) as client:
-            resp = client.post(
-                f"{OLLAMA_BASE_URL}/api/generate",
-                json={
-                    "model": LLM_MODEL,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": 0.1,
-                        "num_predict": 768,
-"num_ctx": 4096,
-                    },
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-    except httpx.ConnectError:
-        raise RuntimeError(
-            f"Cannot connect to Ollama at {OLLAMA_BASE_URL}. "
-            f"Ensure Ollama is running and '{LLM_MODEL}' is pulled."
+        client = Groq(api_key=GROQ_API_KEY)
+        resp = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_message},
+            ],
+            temperature=0.1,
+            max_tokens=768,
         )
-    except httpx.TimeoutException:
-        raise RuntimeError(
-            f"Ollama timed out after 300s. The LLM took too long to respond. "
-            f"Try a shorter question or use a smaller document."
-        )
-    except httpx.HTTPStatusError as e:
-        raise RuntimeError(f"Ollama error: {e.response.text}")
     except Exception as e:
-        raise RuntimeError(f"Ollama request failed: {e}")
+        raise RuntimeError(f"Groq API request failed: {e}")
 
     elapsed = time.monotonic() - start
-    answer = _strip_markdown(data.get("response", "").strip())
-    thinking = (data.get("thinking") or "")[:200]
-    logger.info(
-        f"LLM response in {elapsed:.2f}s | answer={len(answer)} chars "
-        f"| done_reason={data.get('done_reason')} | thinking={thinking}"
-    )
+    answer = _strip_markdown((resp.choices[0].message.content or "").strip())
+    logger.info(f"Groq response in {elapsed:.2f}s | answer={len(answer)} chars | model={GROQ_MODEL}")
 
     if not answer:
-        logger.warning(f"Ollama returned empty response. Full data: {data}")
+        logger.warning("Groq returned empty response")
 
     return {
         "answer": answer,
