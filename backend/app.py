@@ -19,11 +19,11 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="HybridRAG AI", version="1.0.0")
 
-origins = ALLOWED_ORIGINS.split(",") if ALLOWED_ORIGINS else ["http://localhost:5173"]
+origins = ALLOWED_ORIGINS.split(",") if ALLOWED_ORIGINS else ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
