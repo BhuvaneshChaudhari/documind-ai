@@ -8,7 +8,7 @@ from config import GROQ_API_KEY, GROQ_MODEL, LLM_MODEL
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are a document Q&A assistant. Use the provided context to answer the user's question. If the context doesn't contain the answer, say so. Be concise. Plain text only — no markdown formatting."""
+SYSTEM_PROMPT = """You are a precise document Q&A assistant. Answer the user's question based solely on the provided context. Be concise and use plain text — no markdown. If the context has the information, answer directly. Only say you cannot find the information if the context genuinely does not contain the answer."""
 
 
 def _strip_markdown(text: str) -> str:
