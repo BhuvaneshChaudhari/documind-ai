@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from config import LLM_MODEL, EMBEDDING_MODEL
+from config import LLM_MODEL
 
 router = APIRouter()
 
@@ -9,4 +9,4 @@ async def health_check():
 
 @router.get("/config")
 async def config():
-    return {"llm_model": LLM_MODEL, "embedding_model": EMBEDDING_MODEL}
+    return {"llm_model": LLM_MODEL, "embedding_model": "all-MiniLM-L6-v2 (ONNX)"}
