@@ -2,6 +2,7 @@ import logging
 
 import chromadb
 from chromadb.config import Settings
+from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
 
 from config import CHROMA_DIR, COLLECTION_NAME
 
@@ -9,6 +10,16 @@ logger = logging.getLogger(__name__)
 
 _client = None
 _collection = None
+_ef = None
+
+
+def _get_ef():
+    global _ef
+    if _ef is None:
+        logger.info("Loading ONNX embedding function (all-MiniLM-L6-v2)")
+        _ef = ONNXMiniLM_L6_V2()
+        logger.info("ONNX embedding function ready")
+    return _ef
 
 
 def _get_client():
@@ -29,6 +40,7 @@ def get_collection():
         client = _get_client()
         _collection = client.get_or_create_collection(
             name=COLLECTION_NAME,
+            embedding_function=_get_ef(),
             metadata={"hnsw:space": "cosine"},
         )
         existing = _collection.count()
@@ -48,7 +60,6 @@ def delete_all_chunks() -> None:
 
 def store_chunks(
     chunks: list[dict],
-    embeddings: list[list[float]],
     filename: str,
 ) -> int:
     collection = get_collection()
@@ -66,7 +77,6 @@ def store_chunks(
 
     collection.add(
         ids=ids,
-        embeddings=embeddings,
         documents=documents,
         metadatas=metadatas,
     )
@@ -77,13 +87,13 @@ def store_chunks(
 
 
 def search_similar(
-    query_embedding: list[float],
+    query: str,
     k: int = 5,
 ) -> list[dict]:
     collection = get_collection()
 
     results = collection.query(
-        query_embeddings=[query_embedding],
+        query_texts=[query],
         n_results=k,
         include=["documents", "metadatas", "distances"],
     )

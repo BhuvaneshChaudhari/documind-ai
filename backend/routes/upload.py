@@ -3,10 +3,9 @@ import asyncio
 
 from fastapi import APIRouter, HTTPException, UploadFile, File
 
-from config import UPLOAD_DIR, MAX_FILE_SIZE_MB, CHUNK_SIZE, CHUNK_OVERLAP, EMBEDDING_DIM
+from config import UPLOAD_DIR, MAX_FILE_SIZE_MB, CHUNK_SIZE, CHUNK_OVERLAP
 from services.pdf_processor import extract_text_from_pdf
 from services.chunker import chunk_text
-from services.embedder import generate_embeddings
 from services.vector_store import store_chunks, delete_all_chunks
 from retrieval.bm25_retriever import clear_index
 
@@ -54,9 +53,7 @@ async def upload_document(file: UploadFile = File(...)):
 
         logger.info(f"Created {len(chunks)} chunks")
 
-        texts = [c["text"] for c in chunks]
-        embeddings = await _run_blocking(generate_embeddings, texts)
-        total_stored = await _run_blocking(store_chunks, chunks, embeddings, file.filename)
+        total_stored = await _run_blocking(store_chunks, chunks, file.filename)
         await _run_blocking(clear_index)
 
         previews = [
@@ -74,7 +71,7 @@ async def upload_document(file: UploadFile = File(...)):
             "file_size_bytes": len(contents),
             "text_length": len(text),
             "chunk_count": len(chunks),
-            "embedding_dimension": EMBEDDING_DIM,
+            "embedding_dimension": 384,
             "total_chunks_in_db": total_stored,
             "chunk_size": CHUNK_SIZE,
             "chunk_overlap": CHUNK_OVERLAP,
